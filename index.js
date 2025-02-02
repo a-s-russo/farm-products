@@ -3,6 +3,7 @@ import methodOverride from "method-override";
 import mongoose from "mongoose";
 import path from "node:path";
 import { AppError } from "./AppError.js";
+import { Farm } from "./models/farm.js";
 import { fileURLToPath } from "node:url";
 import { Product } from "./models/product.js";
 
@@ -26,6 +27,83 @@ app.set("view engine", "ejs");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
+
+// FARM ROUTES
+
+app.get(
+  "/farms",
+  wrapAsync(async (req, res, next) => {
+    const farms = await Farm.find({});
+    res.render("farms/index", { farms });
+  })
+);
+
+app.get("/farms/new", (req, res) => {
+  res.render("farms/new");
+});
+
+app.delete(
+  "/farms/:id",
+  wrapAsync(async (req, res, next) => {
+    const farm = await Farm.findByIdAndDelete(req.params.id);
+    res.redirect("/farms");
+  })
+);
+
+app.get(
+  "/farms/:id",
+  wrapAsync(async (req, res, next) => {
+    const farm = await Farm.findById(req.params.id).populate("products");
+    if (!farm) {
+      throw new AppError("Farm not found", 404);
+    } else {
+      res.render("farms/show", { farm });
+    }
+  })
+);
+
+app.post(
+  "/farms",
+  wrapAsync(async (req, res, next) => {
+    const farm = new Farm(req.body);
+    await farm.save();
+    res.redirect("/farms");
+  })
+);
+
+app.get(
+  "/farms/:id/products/new",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    const farm = await Farm.findById(id);
+    if (!farm) {
+      throw new AppError("Farm not found", 404);
+    } else {
+      res.render("products/new", { categories, farm });
+    }
+  })
+);
+
+app.post(
+  "/farms/:id/products",
+  wrapAsync(async (req, res, next) => {
+    const { id } = req.params;
+    const farm = await Farm.findById(id);
+    if (!farm) {
+      throw new AppError("Farm not found", 404);
+    } else {
+      const { name, price, category } = req.body;
+      const product = new Product({ name, price, category });
+      farm.products.push(product);
+      product.farm = farm;
+      await farm.save();
+      await product.save();
+      res.redirect(`/farms/${farm._id}`);
+    }
+  })
+);
+
+// PRODUCT ROUTES
 
 const categories = ["fruit", "vegetable", "dairy"];
 
@@ -66,7 +144,7 @@ app.get(
   "/products/:id",
   wrapAsync(async (req, res, next) => {
     const { id } = req.params;
-    const product = await Product.findById(id);
+    const product = await Product.findById(id).populate("farm", "name");
     if (!product) {
       throw new AppError("Product not found", 404);
     } else {
