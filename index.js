@@ -1,7 +1,9 @@
 import express from "express";
+import flash from "connect-flash";
 import methodOverride from "method-override";
 import mongoose from "mongoose";
 import path from "node:path";
+import session from "express-session";
 import { AppError } from "./AppError.js";
 import { Farm } from "./models/farm.js";
 import { fileURLToPath } from "node:url";
@@ -11,6 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 const port = 3000;
+const sessionOptions = {
+  secret: "mysecret",
+  resave: false,
+  saveUninitialized: false,
+};
 
 mongoose
   .connect("mongodb://localhost:27017/farmStand")
@@ -27,8 +34,15 @@ app.set("view engine", "ejs");
 
 app.use(express.urlencoded({ extended: true }));
 app.use(methodOverride("_method"));
+app.use(session(sessionOptions));
+app.use(flash());
 
 // FARM ROUTES
+
+app.use((req, res, next) => {
+  res.locals.messages = req.flash("success");
+  next();
+});
 
 app.get(
   "/farms",
@@ -67,6 +81,7 @@ app.post(
   wrapAsync(async (req, res, next) => {
     const farm = new Farm(req.body);
     await farm.save();
+    req.flash("success", "Successfully made a new farm!");
     res.redirect("/farms");
   })
 );
